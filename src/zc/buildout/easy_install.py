@@ -773,7 +773,7 @@ class Installer(object):
             processed[req] = True
         return ws
 
-    def build(self, spec, build_ext):
+    def build(self, spec, build_ext, cfg_edits=None):
 
         requirement = self._constrain(pkg_resources.Requirement.parse(spec))
 
@@ -828,8 +828,8 @@ class Installer(object):
                 if not os.path.exists(setup_cfg):
                     f = open(setup_cfg, 'w')
                     f.close()
-                setuptools.command.setopt.edit_config(
-                    setup_cfg, dict(build_ext=build_ext))
+                all_edits = merge_edits(build_ext, cfg_edits)
+                setuptools.command.setopt.edit_config(setup_cfg, all_edits)
 
                 dists = self._call_easy_install(base, self._dest, dist)
 
@@ -872,6 +872,27 @@ class Installer(object):
 
     def _final_version(self, parsed_version):
         return not parsed_version.is_prerelease
+
+
+def merge_edits(build_ext, cfg_edits=None):
+    """Merge setup.cfg parameters.
+
+    build_ext is a mapping of {option: value}.
+    cfg_edits, if not None, is a mapping of {section: {option: value}}.
+    """
+    if build_ext:
+        all_edits = dict(build_ext=build_ext)
+    else:
+        all_edits = {}
+
+    if cfg_edits:
+        for section, options in cfg_edits.items():
+            s = all_edits.get(section)
+            if s is None:
+                all_edits[section] = s = {}
+            s.update(options)
+
+    return all_edits
 
 
 def normalize_versions(versions):
@@ -967,12 +988,13 @@ setuptools_pythonpath = os.pathsep.join(setuptools_path)
 def build(spec, dest, build_ext,
           links=(), index=None,
           executable=sys.executable,
-          path=None, newest=True, versions=None, allow_hosts=('*',)):
+          path=None, newest=True, versions=None, allow_hosts=('*',),
+          cfg_edits=None):
     assert executable == sys.executable, (executable, sys.executable)
     installer = Installer(dest, links, index, executable,
                           True, path, newest,
                           versions, allow_hosts=allow_hosts)
-    return installer.build(spec, build_ext)
+    return installer.build(spec, build_ext, cfg_edits=cfg_edits)
 
 
 def _rm(*paths):
@@ -1047,7 +1069,8 @@ def _detect_distutils_scripts(directory):
 
 def develop(setup, dest,
             build_ext=None,
-            executable=sys.executable):
+            executable=sys.executable,
+            cfg_edits=None):
     assert executable == sys.executable, (executable, sys.executable)
     if os.path.isdir(setup):
         directory = setup
@@ -1057,7 +1080,7 @@ def develop(setup, dest,
 
     undo = []
     try:
-        if build_ext:
+        if build_ext or cfg_edits:
             setup_cfg = os.path.join(directory, 'setup.cfg')
             if os.path.exists(setup_cfg):
                 os.rename(setup_cfg, setup_cfg+'-develop-aside')
@@ -1070,8 +1093,8 @@ def develop(setup, dest,
                 f = open(setup_cfg, 'w')
                 f.close()
                 undo.append(lambda: os.remove(setup_cfg))
-            setuptools.command.setopt.edit_config(
-                setup_cfg, dict(build_ext=build_ext))
+            all_edits = merge_edits(build_ext, cfg_edits)
+            setuptools.command.setopt.edit_config(setup_cfg, all_edits)
 
         fd, tsetup = tempfile.mkstemp()
         undo.append(lambda: os.remove(tsetup))

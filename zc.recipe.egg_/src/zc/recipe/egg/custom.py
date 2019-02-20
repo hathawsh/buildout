@@ -15,6 +15,7 @@
 """
 import logging
 import os
+import re
 import sys
 
 import zc.buildout.easy_install
@@ -30,6 +31,7 @@ class Base:
         options['_d'] = buildout['buildout']['develop-eggs-directory']
 
         self.build_ext = build_ext(buildout, options)
+        self.cfg_edits = get_cfg_edits(buildout, options)
 
     def update(self):
         return self.install()
@@ -89,7 +91,7 @@ class Custom(Base):
                 distribution, options['_d'], self.build_ext,
                 self.links, self.index, sys.executable,
                 [options['_e']], newest=self.newest,
-                )
+                cfg_edits=self.cfg_edits)
         finally:
             self._restore_environment()
 
@@ -125,7 +127,8 @@ class Develop(Base):
     def install(self):
         options = self.options
         return zc.buildout.easy_install.develop(
-            options['setup'], options['_d'], self.build_ext)
+            options['setup'], options['_d'], self.build_ext,
+            cfg_edits=self.cfg_edits)
 
 
 def build_ext(buildout, options):
@@ -180,3 +183,21 @@ def build_ext(buildout, options):
         result[be_option] = value
 
     return result
+
+
+setupcfg_option_re = re.compile(r'^setupcfg\.([^\.]+)\.(.*)$')
+
+
+def get_cfg_edits(buildout, options):
+    """Extract setupcfg.*.* options and return {section: {option: value}}."""
+    res = {}
+    for k, v in options.items():
+        match = setupcfg_option_re.match(k)
+        if match is not None:
+            section, option = match.groups()
+            s = res.get(section)
+            if s is None:
+                res[section] = s = {}
+            s[option] = v
+
+    return res

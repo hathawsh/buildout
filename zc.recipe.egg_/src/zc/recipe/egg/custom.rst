@@ -56,6 +56,14 @@ swig-cpp
 swig-opts
    List of SWIG command line options
 
+setupcfg.{section}.{option}
+   Add or replace an option in a section of ``setup.cfg``.
+   For example, if you specify ``setupcfg.x.y = z``, the final ``setup.cfg``
+   file will contain::
+
+        [x]
+        y = z
+
 In addition, the following options can be used to specify the egg:
 
 egg
@@ -490,6 +498,14 @@ swig-cpp
 
 swig-opts
    List of SWIG command line options
+
+setupcfg.{section}.{option}
+   Add or replace an option in a section of ``setup.cfg``.
+   For example, if you specify ``setupcfg.x.y = z``, the final ``setup.cfg``
+   file will contain::
+
+        [x]
+        y = z
 
 To illustrate this, we'll use a directory containing the extdemo
 example from the earlier section:
