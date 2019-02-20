@@ -662,6 +662,11 @@ class Installer(object):
 
         return requirement
 
+    def _applicable(self, requirement):
+        """Return true if a requirement applies to this environment."""
+        marker = getattr(requirement, 'marker', None)
+        return marker is None or marker.evaluate()
+
     def install(self, specs, working_set=None):
 
         logger.debug('Installing %s.', repr(specs)[1:-1])
@@ -670,8 +675,11 @@ class Installer(object):
 
         for_buildout_run = bool(working_set)
 
-        requirements = [self._constrain(pkg_resources.Requirement.parse(spec))
-                        for spec in specs]
+        requirements = []
+        for spec in specs:
+            req = pkg_resources.Requirement.parse(spec)
+            if self._applicable(req):
+                requirements.append(self._constrain(req))
 
         if working_set is None:
             ws = pkg_resources.WorkingSet([])
@@ -763,6 +771,9 @@ class Installer(object):
                 )
             else:
                 extra_requirements = dist.requires(req.extras)[::-1]
+
+            extra_requirements = list(
+                filter(self._applicable, extra_requirements))
 
             for extra_requirement in extra_requirements:
                 self._requirements_and_constraints.append(
@@ -864,6 +875,8 @@ class Installer(object):
         ws.sort()
         for dist in ws:
             if req in dist.requires():
+                if not self._applicable(req):
+                    continue
                 logger.debug("  required by %s." % dist)
                 req_ = str(req)
                 if req_ not in Installer._required_by:
